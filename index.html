@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8">
@@ -186,6 +186,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 <script>
 (function(){
 const STORAGE_KEY='daily_expenses_data', SETTINGS_KEY='daily_expenses_settings';
+const DEFAULT_WEBHOOK='https://script.google.com/macros/s/AKfycbyrGUAUDu3caIXp3LPq0IU9cnvT7WNIbixwLAff44gk69bb9o0afnaTVnWdqhFRPojvZg/exec';
 const EXP=['👩 Piranya (แม่พีช)','👦 Pattaraphon (พี่พอร์ช)','👧 Piraya (น้องผิง)','🍲 อาหารและเครื่องดื่ม','🚗 เดินทาง / คมนาคม','🛍️ ช้อปปิ้ง','💡 ค่าน้ำ / ค่าไฟ / ค่าเน็ต','🏠 ค่าที่พัก / ค่าบ้าน','🎮 ความบันเทิง','💊 สุขภาพ','🛒 ของใช้ในบ้าน','📈 ฝากเข้าพอร์ตลงทุน','🏷️ รายจ่ายอื่นๆ'];
 const INC=['👩 Piranya (แม่พีช)','👦 Pattaraphon (พี่พอร์ช)','👧 Piraya (น้องผิง)','💼 เงินเดือน','🏪 ค้าขาย / ธุรกิจ','🎯 โบนัส','📈 ลงทุน / ปันผล','💻 ฟรีแลนซ์','📈 ถอนจากพอร์ตลงทุน','🏷️ รายรับอื่นๆ'];
 let transactions=[], settings={googleSheetUrl:'',webhookUrl:'',autoSendWebhook:true}, currentType='expense', cameraStream=null, camRaf=null;
@@ -201,6 +202,7 @@ function loadAll(){
   try{const r=localStorage.getItem(STORAGE_KEY);transactions=r?JSON.parse(r):[];}catch(e){transactions=[];}
   try{const r=localStorage.getItem(SETTINGS_KEY);if(r)Object.assign(settings,JSON.parse(r));}catch(e){}
   $('setting-sheet-url').value=settings.googleSheetUrl||'';
+  if(!settings.webhookUrl)settings.webhookUrl=DEFAULT_WEBHOOK;
   $('setting-webhook-url').value=settings.webhookUrl||'';
   $('setting-auto-webhook').checked=settings.autoSendWebhook!==false;
   updateSheetLink();
@@ -378,12 +380,12 @@ $('btn-test-webhook').addEventListener('click',async function(){
   if(!url){st.className='text-xs p-2.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200';st.textContent='กรุณากรอก URL Webhook';return;}
   st.className='text-xs p-2.5 rounded-lg bg-slate-100 text-slate-700';st.textContent='กำลังส่งคำขอทดสอบ...';
   try{
-    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event:'ping_test',timestamp:new Date().toISOString()})});
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({event:'ping_test',timestamp:new Date().toISOString()})});
     st.className='text-xs p-2.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200';
     st.textContent='ส่งสำเร็จ! ตอบกลับ HTTP '+(res.status||200);
   }catch(e){
     st.className='text-xs p-2.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200';
-    st.textContent='ส่งไม่สำเร็จ (อาจติด CORS หรือถูกบล็อกโดยหน้าที่โฮสต์นี้)';
+    try{await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({event:'ping_test',timestamp:new Date().toISOString()})});st.className='text-xs p-2.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200';st.textContent='ส่งคำขอแล้ว (อ่านผลตอบกลับไม่ได้เพราะ CORS) ให้ตรวจว่ามีข้อมูลทดสอบเข้า Sheet';}catch(e2){st.textContent='ส่งไม่สำเร็จ: ถูกบล็อกโดยหน้านี้ หรือ URL ไม่ถูกต้อง';}
   }
 });
 $('btn-save-settings').addEventListener('click',saveSettings);
