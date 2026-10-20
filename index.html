@@ -1,1 +1,391 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>บันทึกรายรับ-รายจ่ายประจำวัน</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{font-family:'Prompt',system-ui,sans-serif;background:#f8fafc}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen pb-16">
+<div class="max-w-xl mx-auto px-4 pt-5 sm:pt-7">
+<header class="flex items-center justify-between mb-4">
+  <div>
+    <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2"><span>💰</span> บันทึกรายรับ-รายจ่าย</h1>
+    <p class="text-xs text-slate-500">แสกนสลิป • แดชบอร์ด • ตั้งค่า URL Sheet &amp; Webhook</p>
+  </div>
+  <div id="status-pill" class="text-[11px] bg-emerald-50 text-emerald-700 font-semibold px-2.5 py-1 rounded-full border border-emerald-200">● LocalStorage</div>
+</header>
+
+<nav class="bg-white p-1 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-3 gap-1 mb-6">
+  <button id="tab-btn-record" class="tab-btn"><span>📝 บันทึกรายการ</span><span class="text-[10px] font-normal opacity-80">แสกนสลิป/พิมพ์</span></button>
+  <button id="tab-btn-dashboard" class="tab-btn"><span>📊 แดชบอร์ด</span><span class="text-[10px] font-normal opacity-70">สรุปยอด &amp; รายการ</span></button>
+  <button id="tab-btn-backoffice" class="tab-btn"><span>⚙️ หลังบ้าน</span><span class="text-[10px] font-normal opacity-70">Sheet &amp; Webhook</span></button>
+</nav>
+
+<!-- PAGE 1 -->
+<div id="page-record" class="page-view space-y-5">
+  <section class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        <span class="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">1</span>
+        <h2 class="text-sm font-bold text-slate-900">แสกน QR จากสลิปธนาคาร</h2>
+      </div>
+      <span class="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded-full">Auto-Fill</span>
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <label class="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold text-center cursor-pointer transition">
+        <span>📁 อัปโหลดภาพสลิป</span>
+        <input type="file" id="slip-file-input" accept="image/*" class="hidden">
+      </label>
+      <button type="button" id="btn-toggle-camera" class="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">📷 เปิดกล้องแสกน</button>
+    </div>
+    <div id="camera-container" class="hidden mt-3 relative rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center">
+      <video id="camera-video" class="w-full h-full object-cover" muted></video>
+      <canvas id="camera-canvas" class="hidden"></canvas>
+      <div class="absolute inset-0 flex items-center justify-center pointer-events-none"><div class="w-40 h-40 border-2 border-indigo-400 rounded-xl animate-pulse"></div></div>
+    </div>
+    <div id="scan-feedback" class="hidden mt-3 p-2.5 rounded-xl text-xs font-medium"></div>
+  </section>
+
+  <section class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200">
+    <div class="flex items-center gap-2 mb-4">
+      <span class="w-6 h-6 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">2</span>
+      <h2 class="text-sm font-bold text-slate-900">พิมพ์เลขเอง &amp; ระบุรายละเอียด</h2>
+    </div>
+    <form id="record-form" class="space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">ประเภท</label>
+        <div class="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+          <button type="button" id="type-btn-expense" class="py-2 text-xs font-bold rounded-lg text-white bg-rose-500 shadow-sm cursor-pointer">รายจ่าย 💸</button>
+          <button type="button" id="type-btn-income" class="py-2 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer">รายรับ 💰</button>
+        </div>
+      </div>
+      <div>
+        <label for="entry-amount" class="block text-xs font-semibold text-slate-600 mb-1">จำนวนเงิน (บาท)</label>
+        <div class="relative">
+          <span class="absolute left-3.5 top-2.5 text-slate-400 font-bold">฿</span>
+          <input type="number" id="entry-amount" min="0.01" step="any" required placeholder="0.00" class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white">
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span class="text-[11px] text-slate-400">เพิ่มเร็ว:</span>
+        <button type="button" data-q="20" class="qa px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-medium">+20</button>
+        <button type="button" data-q="50" class="qa px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-medium">+50</button>
+        <button type="button" data-q="100" class="qa px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-medium">+100</button>
+        <button type="button" data-q="500" class="qa px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-medium">+500</button>
+      </div>
+      <div>
+        <label for="entry-date" class="block text-xs font-semibold text-slate-600 mb-1">วันที่</label>
+        <input type="date" id="entry-date" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label for="entry-category" class="block text-xs font-semibold text-slate-600 mb-1">หมวดหมู่</label>
+        <select id="entry-category" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"></select>
+      </div>
+      <div>
+        <label for="entry-note" class="block text-xs font-semibold text-slate-600 mb-1">หมายเหตุ</label>
+        <input type="text" id="entry-note" placeholder="เช่น อาหารกลางวัน, ค่าน้ำมัน, ช้อปปิ้ง" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <button type="submit" class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition cursor-pointer">บันทึกรายการ</button>
+      <div id="save-feedback" class="hidden p-2.5 rounded-xl text-xs font-medium bg-emerald-50 border border-emerald-200 text-emerald-800"></div>
+    </form>
+  </section>
+</div>
+
+<!-- PAGE 2 -->
+<div id="page-dashboard" class="page-view hidden space-y-5">
+  <section class="grid grid-cols-3 gap-2.5">
+    <div class="bg-white p-3.5 rounded-2xl border border-emerald-100 shadow-sm"><span class="text-[11px] text-slate-500 font-semibold block mb-1">รายรับรวม</span><p id="dash-income" class="text-base sm:text-lg font-bold text-emerald-600 truncate">฿0</p></div>
+    <div class="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-sm"><span class="text-[11px] text-slate-500 font-semibold block mb-1">รายจ่ายรวม</span><p id="dash-expense" class="text-base sm:text-lg font-bold text-rose-600 truncate">฿0</p></div>
+    <div class="bg-white p-3.5 rounded-2xl border border-indigo-100 shadow-sm"><span class="text-[11px] text-slate-500 font-semibold block mb-1">คงเหลือสุทธิ</span><p id="dash-balance" class="text-base sm:text-lg font-bold text-slate-900 truncate">฿0</p></div>
+  </section>
+  <section class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2"><span>📜</span> รายการใช้จ่ายทั้งหมด <span id="dash-count-badge" class="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">0</span></h2>
+      <button id="btn-export-csv" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold cursor-pointer">ส่งออก CSV</button>
+    </div>
+    <div class="grid grid-cols-2 gap-2 mb-3">
+      <input type="text" id="dash-search" placeholder="ค้นหา..." class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500">
+      <select id="dash-filter-type" class="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium cursor-pointer">
+        <option value="all">ประเภททั้งหมด</option><option value="expense">เฉพาะรายจ่าย</option><option value="income">เฉพาะรายรับ</option>
+      </select>
+    </div>
+    <div id="dash-list" class="space-y-2"></div>
+  </section>
+</div>
+
+<!-- PAGE 3 -->
+<div id="page-backoffice" class="page-view hidden space-y-5">
+  <section class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2"><span>📊</span> ที่อยู่ของ URL Google Sheet</h2>
+      <a id="link-open-sheet" href="#" target="_blank" rel="noopener" class="hidden text-xs text-emerald-600 font-bold underline">เปิดดู Sheet ↗</a>
+    </div>
+    <div class="space-y-2">
+      <label class="block text-xs font-semibold text-slate-700">Google Sheet URL</label>
+      <input type="url" id="setting-sheet-url" placeholder="https://docs.google.com/spreadsheets/d/your-id/edit" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500">
+      <p class="text-[11px] text-slate-400">ระบุ URL สเปรดชีตของคุณสำหรับเก็บข้อมูล</p>
+    </div>
+  </section>
+  <section class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200">
+    <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2 mb-3"><span>🔗</span> ที่อยู่ของ URL Webhook</h2>
+    <div class="space-y-3">
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">Webhook URL (POST)</label>
+        <input type="url" id="setting-webhook-url" placeholder="https://discord.com/api/webhooks/... หรือ LINE/Make URL" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="setting-auto-webhook" checked class="w-4 h-4 text-indigo-600 rounded">
+        <label for="setting-auto-webhook" class="text-xs text-slate-700">ส่ง Webhook อัตโนมัติเมื่อบันทึกรายการใหม่</label>
+      </div>
+      <button type="button" id="btn-test-webhook" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition cursor-pointer">ทดสอบส่ง Webhook (Ping)</button>
+      <div id="webhook-test-status" class="hidden text-xs p-2.5 rounded-lg"></div>
+    </div>
+  </section>
+  <button type="button" id="btn-save-settings" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition cursor-pointer">บันทึกการตั้งค่าหลังบ้าน</button>
+  <div id="settings-feedback" class="hidden p-2.5 rounded-xl text-xs font-medium bg-emerald-50 border border-emerald-200 text-emerald-800"></div>
+  <section class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 text-xs">
+    <h3 class="font-bold text-slate-800 mb-2">สำรองและกู้คืนข้อมูล</h3>
+    <div class="flex gap-2">
+      <button id="btn-export-json" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-slate-700">สำรองไฟล์ JSON</button>
+      <label class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-slate-700 text-center cursor-pointer">กู้คืน JSON<input type="file" id="input-import-json" accept=".json" class="hidden"></label>
+    </div>
+  </section>
+</div>
+</div>
+
+<script>
+(function(){
+const STORAGE_KEY='daily_expenses_data', SETTINGS_KEY='daily_expenses_settings';
+const EXP=['👩 Piranya (แม่พีช)','👦 Pattaraphon (พี่พอร์ช)','👧 Piraya (น้องผิง)','🍲 อาหารและเครื่องดื่ม','🚗 เดินทาง / คมนาคม','🛍️ ช้อปปิ้ง','💡 ค่าน้ำ / ค่าไฟ / ค่าเน็ต','🏠 ค่าที่พัก / ค่าบ้าน','🎮 ความบันเทิง','💊 สุขภาพ','🛒 ของใช้ในบ้าน','🏷️ รายจ่ายอื่นๆ'];
+const INC=['👩 Piranya (แม่พีช)','👦 Pattaraphon (พี่พอร์ช)','👧 Piraya (น้องผิง)','💼 เงินเดือน','🏪 ค้าขาย / ธุรกิจ','🎯 โบนัส','📈 ลงทุน / ปันผล','💻 ฟรีแลนซ์','🏷️ รายรับอื่นๆ'];
+let transactions=[], settings={googleSheetUrl:'',webhookUrl:'',autoSendWebhook:true}, currentType='expense', cameraStream=null, camRaf=null;
+const $=id=>document.getElementById(id);
+const pages={record:$('page-record'),dashboard:$('page-dashboard'),backoffice:$('page-backoffice')};
+const tabs={record:$('tab-btn-record'),dashboard:$('tab-btn-dashboard'),backoffice:$('tab-btn-backoffice')};
+const TAB_ON='tab-btn py-2.5 px-2 rounded-xl text-xs font-bold text-white bg-slate-900 shadow-sm transition flex flex-col items-center justify-center cursor-pointer';
+const TAB_OFF='tab-btn py-2.5 px-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition flex flex-col items-center justify-center cursor-pointer';
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function flash(el,msg,ms){el.textContent=msg;el.classList.remove('hidden');setTimeout(()=>el.classList.add('hidden'),ms||2500);}
+
+function loadAll(){
+  try{const r=localStorage.getItem(STORAGE_KEY);transactions=r?JSON.parse(r):[];}catch(e){transactions=[];}
+  try{const r=localStorage.getItem(SETTINGS_KEY);if(r)Object.assign(settings,JSON.parse(r));}catch(e){}
+  $('setting-sheet-url').value=settings.googleSheetUrl||'';
+  $('setting-webhook-url').value=settings.webhookUrl||'';
+  $('setting-auto-webhook').checked=settings.autoSendWebhook!==false;
+  updateSheetLink();
+}
+function saveTransactions(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(transactions));}catch(e){}}
+function saveSettings(){
+  settings.googleSheetUrl=$('setting-sheet-url').value.trim();
+  settings.webhookUrl=$('setting-webhook-url').value.trim();
+  settings.autoSendWebhook=$('setting-auto-webhook').checked;
+  try{localStorage.setItem(SETTINGS_KEY,JSON.stringify(settings));}catch(e){}
+  updateSheetLink();
+  flash($('settings-feedback'),'บันทึกการตั้งค่าหลังบ้านเรียบร้อยแล้ว');
+}
+function updateSheetLink(){
+  const l=$('link-open-sheet');
+  if(settings.googleSheetUrl){l.href=settings.googleSheetUrl;l.classList.remove('hidden');}else l.classList.add('hidden');
+}
+function setTab(t){
+  Object.keys(pages).forEach(k=>{pages[k].classList.toggle('hidden',k!==t);tabs[k].className=k===t?TAB_ON:TAB_OFF;});
+  if(t==='dashboard')renderDashboard();
+}
+Object.keys(tabs).forEach(k=>tabs[k].addEventListener('click',()=>setTab(k)));
+
+function updateCategories(){
+  const s=$('entry-category');s.innerHTML='';
+  (currentType==='expense'?EXP:INC).forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o);});
+}
+function setType(t){
+  currentType=t;
+  const e=$('type-btn-expense'),i=$('type-btn-income'),off='py-2 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer';
+  e.className=t==='expense'?'py-2 text-xs font-bold rounded-lg text-white bg-rose-500 shadow-sm cursor-pointer':off;
+  i.className=t==='income'?'py-2 text-xs font-bold rounded-lg text-white bg-emerald-500 shadow-sm cursor-pointer':off;
+  updateCategories();
+}
+$('type-btn-expense').addEventListener('click',()=>setType('expense'));
+$('type-btn-income').addEventListener('click',()=>setType('income'));
+document.querySelectorAll('.qa').forEach(b=>b.addEventListener('click',()=>{
+  const el=$('entry-amount');el.value=((parseFloat(el.value||0)||0)+Number(b.dataset.q)).toString();
+}));
+
+function parseSlipQR(raw){
+  let amount=null,note='รายการจากสลิป QR',i=0;
+  while(i<raw.length-4){
+    const tag=raw.substring(i,i+2),len=parseInt(raw.substring(i+2,i+4),10);
+    if(isNaN(len)||i+4+len>raw.length)break;
+    const val=raw.substring(i+4,i+4+len);
+    if(tag==='54')amount=parseFloat(val);
+    if(tag==='59')note='โอนให้ '+val;
+    i+=4+len;
+  }
+  return{amount,note,raw};
+}
+function scanMsg(cls,text){const fb=$('scan-feedback');fb.className='mt-3 p-2.5 rounded-xl text-xs font-medium '+cls;fb.textContent=text;fb.classList.remove('hidden');}
+function handleDecodedQR(text){
+  const p=parseSlipQR(text);setType('expense');
+  if(p.amount)$('entry-amount').value=p.amount;
+  if(p.note)$('entry-note').value=p.note;
+  scanMsg('bg-emerald-50 border border-emerald-200 text-emerald-800',p.amount?'แสกนสลิปสำเร็จ! พบยอด ฿'+p.amount+' กรอกลงฟอร์มอัตโนมัติเรียบร้อย':'พบ QR Code บนสลิปแล้ว! กรุณากรอกจำนวนเงินเพื่อยืนยัน');
+}
+$('slip-file-input').addEventListener('change',function(e){
+  const file=e.target.files&&e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(evt){
+    const img=new Image();
+    img.onload=function(){
+      const c=document.createElement('canvas');c.width=img.width;c.height=img.height;
+      const ctx=c.getContext('2d');ctx.drawImage(img,0,0);
+      const d=ctx.getImageData(0,0,c.width,c.height);
+      const code=window.jsQR&&window.jsQR(d.data,d.width,d.height);
+      if(code&&code.data)handleDecodedQR(code.data);
+      else scanMsg('bg-amber-50 border border-amber-200 text-amber-800','ไม่พบ QR Code ในภาพสลิป กรุณาเลือกภาพที่ชัดเจนขึ้น');
+    };
+    img.src=evt.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value='';
+});
+
+const btnCam=$('btn-toggle-camera'),camC=$('camera-container'),camV=$('camera-video'),camCv=$('camera-canvas');
+btnCam.addEventListener('click',async function(){
+  if(cameraStream){stopCamera();return;}
+  try{
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('เบราว์เซอร์ไม่รองรับกล้องในหน้านี้ กรุณาใช้วิธีอัปโหลดภาพสลิป');
+    try{cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});}
+    catch(e1){cameraStream=await navigator.mediaDevices.getUserMedia({video:true});}
+    camV.srcObject=cameraStream;camV.setAttribute('playsinline','true');
+    await camV.play();
+    camC.classList.remove('hidden');btnCam.textContent='❌ ปิดกล้อง';
+    scanLoop();
+  }catch(err){
+    cameraStream=null;
+    scanMsg('bg-amber-50 border border-amber-200 text-amber-800','ไม่สามารถเปิดกล้องได้: '+(err.message||'โปรดใช้ปุ่มอัปโหลดภาพสลิปแทน'));
+  }
+});
+function stopCamera(){
+  if(camRaf)cancelAnimationFrame(camRaf);
+  if(cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null;}
+  camC.classList.add('hidden');btnCam.textContent='📷 เปิดกล้องแสกน';
+}
+function scanLoop(){
+  if(!cameraStream)return;
+  if(camV.readyState===camV.HAVE_ENOUGH_DATA){
+    camCv.width=camV.videoWidth;camCv.height=camV.videoHeight;
+    const ctx=camCv.getContext('2d');ctx.drawImage(camV,0,0,camCv.width,camCv.height);
+    const d=ctx.getImageData(0,0,camCv.width,camCv.height);
+    const code=window.jsQR&&window.jsQR(d.data,d.width,d.height);
+    if(code&&code.data){handleDecodedQR(code.data);stopCamera();return;}
+  }
+  camRaf=requestAnimationFrame(scanLoop);
+}
+
+$('record-form').addEventListener('submit',function(e){
+  e.preventDefault();
+  const amt=parseFloat($('entry-amount').value);
+  if(isNaN(amt)||amt<=0)return flash($('save-feedback'),'กรอกจำนวนเงินไม่ถูกต้อง');
+  const tx={id:'tx_'+Date.now(),date:$('entry-date').value||new Date().toISOString().split('T')[0],type:currentType,amount:amt,category:$('entry-category').value,note:$('entry-note').value.trim(),createdAt:Date.now()};
+  transactions.unshift(tx);saveTransactions();
+  if(settings.webhookUrl&&settings.autoSendWebhook){
+    const payload={event:'transaction_created',timestamp:new Date().toISOString(),transaction:tx,id:tx.id,date:tx.date,type:tx.type==='income'?'รายรับ':'รายจ่าย',category:tx.category,amount:tx.amount,note:tx.note||'',slipRef:tx.slipRef||''};
+    try{
+      fetch(settings.webhookUrl,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)})
+        .catch(()=>fetch(settings.webhookUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}).catch(()=>{}));
+    }catch(x){}
+  }
+  flash($('save-feedback'),'บันทึกรายการสำเร็จแล้ว!');
+  $('entry-amount').value='';$('entry-note').value='';
+});
+
+const fmt=n=>Number(n).toLocaleString('th-TH',{minimumFractionDigits:2});
+function renderDashboard(){
+  let inc=0,exp=0;
+  transactions.forEach(t=>{if(t.type==='income')inc+=Number(t.amount);else exp+=Number(t.amount);});
+  const bal=inc-exp;
+  $('dash-income').textContent='฿'+fmt(inc);
+  $('dash-expense').textContent='฿'+fmt(exp);
+  $('dash-balance').textContent=(bal<0?'-฿':'฿')+fmt(Math.abs(bal));
+  const q=($('dash-search').value||'').toLowerCase(),ft=$('dash-filter-type').value;
+  const list=transactions.filter(t=>{
+    if(ft!=='all'&&t.type!==ft)return false;
+    if(q&&!t.category.toLowerCase().includes(q)&&!(t.note||'').toLowerCase().includes(q))return false;
+    return true;
+  });
+  $('dash-count-badge').textContent=list.length;
+  const el=$('dash-list');el.innerHTML='';
+  if(!list.length){el.innerHTML='<div class="text-center py-8 text-xs text-slate-400">ยังไม่มีรายการ</div>';return;}
+  list.forEach(it=>{
+    const isInc=it.type==='income',row=document.createElement('div');
+    row.className='flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs';
+    row.innerHTML='<div><div class="font-bold text-slate-800">'+esc(it.category)+'</div><div class="text-[11px] text-slate-400">'+esc(it.date)+(it.note?' • '+esc(it.note):'')+'</div></div>'+
+      '<div class="flex items-center gap-3"><span class="font-bold '+(isInc?'text-emerald-600':'text-rose-600')+'">'+(isInc?'+':'-')+'฿'+fmt(it.amount)+'</span>'+
+      '<button data-del="'+esc(it.id)+'" class="text-slate-300 hover:text-rose-600 font-bold p-1">✕</button></div>';
+    el.appendChild(row);
+  });
+}
+$('dash-list').addEventListener('click',function(e){
+  const b=e.target.closest('[data-del]');if(!b)return;
+  if(b.dataset.armed){transactions=transactions.filter(t=>t.id!==b.dataset.del);saveTransactions();renderDashboard();}
+  else{b.dataset.armed='1';b.textContent='ลบ?';b.className='text-rose-600 font-bold p-1 text-[11px]';setTimeout(renderDashboard,2500);}
+});
+$('dash-search').addEventListener('input',renderDashboard);
+$('dash-filter-type').addEventListener('change',renderDashboard);
+
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();}
+$('btn-export-csv').addEventListener('click',function(){
+  if(!transactions.length)return;
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const rows=transactions.map(t=>[t.date,t.type==='income'?'รายรับ':'รายจ่าย',t.category,t.amount,t.note||''].map(q).join(','));
+  const csv=[['วันที่','ประเภท','หมวดหมู่','จำนวนเงิน','หมายเหตุ'].map(q).join(',')].concat(rows).join('\r\n');
+  download(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'}),'daily-expenses.csv');
+});
+
+$('btn-test-webhook').addEventListener('click',async function(){
+  const url=$('setting-webhook-url').value.trim(),st=$('webhook-test-status');
+  st.classList.remove('hidden');
+  if(!url){st.className='text-xs p-2.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200';st.textContent='กรุณากรอก URL Webhook';return;}
+  st.className='text-xs p-2.5 rounded-lg bg-slate-100 text-slate-700';st.textContent='กำลังส่งคำขอทดสอบ...';
+  try{
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event:'ping_test',timestamp:new Date().toISOString()})});
+    st.className='text-xs p-2.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200';
+    st.textContent='ส่งสำเร็จ! ตอบกลับ HTTP '+(res.status||200);
+  }catch(e){
+    st.className='text-xs p-2.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200';
+    st.textContent='ส่งไม่สำเร็จ (อาจติด CORS หรือถูกบล็อกโดยหน้าที่โฮสต์นี้)';
+  }
+});
+$('btn-save-settings').addEventListener('click',saveSettings);
+
+$('btn-export-json').addEventListener('click',()=>download(new Blob([JSON.stringify({transactions,settings},null,2)],{type:'application/json'}),'expenses-backup.json'));
+$('input-import-json').addEventListener('change',function(e){
+  const file=e.target.files&&e.target.files[0];if(!file)return;
+  const r=new FileReader();
+  r.onload=function(evt){
+    try{
+      const d=JSON.parse(evt.target.result);
+      if(Array.isArray(d.transactions)){transactions=d.transactions;saveTransactions();renderDashboard();}
+    }catch(err){}
+  };
+  r.readAsText(file);
+});
+
+$('entry-date').value=new Date().toISOString().split('T')[0];
+loadAll();updateCategories();setTab('record');
+})();
+</script>
+</body>
+</html>
 
